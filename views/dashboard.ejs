@@ -1,0 +1,23 @@
+<!-- views/dashboard.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+  <header class="bg-blue-600 text-white p-6">
+    <h1 class="text-center text-3xl font-bold">Dashboard</h1>
+  </header>
+
+  <section class="mt-10 text-center">
+    <h2 class="text-2xl mb-6">Manage your Email Campaigns</h2>
+    <div>
+      <a href="/compose" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Compose Email</a>
+      <a href="/subscription" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Manage Subscription</a>
+    </div>
+  </section>
+</body>
+</html>
