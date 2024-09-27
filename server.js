@@ -57,24 +57,64 @@ setupDatabase();
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
-// Google OAuth strategy
+// Google OAuth strategy for signup and login
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: '/auth/google/callback',
-}, (accessToken, refreshToken, profile, done) => {
-  // Use profile information to check for user in DB
-  return done(null, profile);
+}, async (accessToken, refreshToken, profile, done) => {
+  const email = profile.emails[0].value;
+  const name = profile.displayName;
+
+  try {
+    // Check if the user exists in the database
+    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+
+    if (rows.length > 0) {
+      // User exists, proceed with login
+      return done(null, rows[0]);
+    } else {
+      // If the user doesn't exist, create a new entry for Google login
+      await pool.query('INSERT INTO users (name, email, google_id) VALUES (?, ?, ?)', [name, email, profile.id]);
+      const [newUser] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+      return done(null, newUser[0]);
+    }
+  } catch (error) {
+    return done(error, null);
+  }
 }));
 
-// Routes
-// Landing Page
+// Middleware to check user authentication
+function ensureAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/');
+}
+
+// Middleware to check user's subscription and email quota
+async function checkSubscription(req, res, next) {
+  const userId = req.user.id;
+  try {
+    const [results] = await pool.query('SELECT email_quota FROM subscriptions WHERE user_id = ?', [userId]);
+    if (results.length > 0 && results[0].email_quota > 0) {
+      req.user.email_quota = results[0].email_quota;
+      return next();
+    } else {
+      res.send('You have reached your email quota. Please purchase more emails.');
+    }
+  } catch (error) {
+    console.error('Error checking subscription:', error);
+    res.send('Error checking subscription.');
+  }
+}
+
+// Landing Page (Login)
 app.get('/', (req, res) => {
-  res.render('login'); // Render login.ejs for the landing page
+  res.render('login');
 });
 
-
-// Google Login
+// Google Signup/Login
 app.get('/auth/google',
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
@@ -82,26 +122,59 @@ app.get('/auth/google',
 app.get('/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/' }),
   (req, res) => {
-    res.redirect('/dashboard'); // Redirect to dashboard after successful login
+    res.redirect('/dashboard');
   }
 );
 
-// Dashboard
-app.get('/dashboard', ensureAuthenticated, (req, res) => {
-  res.render('dashboard', { user: req.user });
+// Signup Route - Render Signup Page
+app.get('/signup', (req, res) => {
+  res.render('signup');
 });
 
-// Email Sending Route
-app.post('/send-email', ensureAuthenticated, async (req, res) => {
-  const { to, subject, text } = req.body;
-  const oauth2Client = new (require('google-auth-library')).OAuth2Client(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    'https://developers.google.com/oauthplayground'
-  );
+// Handle Signup Form Submission for manual signup
+app.post('/signup', async (req, res) => {
+  const { name, email, password } = req.body;
 
   try {
-    const tokens = req.user; // You should store the access token after Google login
+    // Hash the password before saving
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert new user into the database
+    const [result] = await pool.query('INSERT INTO users (name, email, password) VALUES (?, ?, ?)', [name, email, hashedPassword]);
+
+    if (result.affectedRows === 1) {
+      res.redirect('/');
+    } else {
+      res.send('Error creating account');
+    }
+  } catch (error) {
+    console.error('Error during signup:', error);
+    res.send('Error during signup');
+  }
+});
+
+// Dashboard Route
+app.get('/dashboard', ensureAuthenticated, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const [subscription] = await pool.query('SELECT email_quota FROM subscriptions WHERE user_id = ?', [userId]);
+    const emailQuota = subscription.length > 0 ? subscription[0].email_quota : 0;
+
+    res.render('dashboard', { user: req.user, emailQuota });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.send('Error loading dashboard.');
+  }
+});
+
+// Email Sending Route with Subscription Check
+app.post('/send-email', ensureAuthenticated, checkSubscription, async (req, res) => {
+  const { to, subject, text } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const tokens = req.user;
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -115,19 +188,41 @@ app.post('/send-email', ensureAuthenticated, async (req, res) => {
     });
 
     // Send email
-    let info = await transporter.sendMail({
+    await transporter.sendMail({
       from: req.user.emails[0].value,
       to: to,
       subject: subject,
       text: text,
     });
 
-    console.log('Message sent: %s', info.messageId);
+    // Decrease email quota after sending
+    await pool.query('UPDATE subscriptions SET email_quota = email_quota - 1 WHERE user_id = ?', [userId]);
+    await pool.query('UPDATE email_usage SET emails_sent = emails_sent + 1 WHERE user_id = ?', [userId]);
+
     res.send('Email sent successfully');
   } catch (error) {
     console.error('Error sending email:', error);
     res.send('Error sending email: ' + error.message);
   }
+});
+
+// Subscription Purchase Route
+app.post('/purchase-subscription', ensureAuthenticated, async (req, res) => {
+  const { email_quota, amount_paid } = req.body;
+  const userId = req.user.id;
+
+  try {
+    await pool.query('INSERT INTO subscriptions (user_id, email_quota, amount_paid) VALUES (?, ?, ?)', [userId, email_quota, amount_paid]);
+    res.send('Subscription purchased successfully');
+  } catch (error) {
+    console.error('Error processing subscription:', error);
+    res.send('Error processing subscription: ' + error.message);
+  }
+});
+
+// Subscription Page Route
+app.get('/subscription', ensureAuthenticated, (req, res) => {
+  res.render('subscription');
 });
 
 // Logout Route
@@ -140,17 +235,8 @@ app.get('/logout', (req, res) => {
   });
 });
 
-// Middleware to check if the user is authenticated
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.redirect('/');
-}
-
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
-

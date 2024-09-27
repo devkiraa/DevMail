@@ -1,23 +1,37 @@
-<!-- views/dashboard.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Bulk Email Sender</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-  <header class="bg-blue-600 text-white p-6">
-    <h1 class="text-center text-3xl font-bold">Dashboard</h1>
-  </header>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h2 class="text-3xl font-bold mb-6">Welcome, <%= user.displayName %></h2>
 
-  <section class="mt-10 text-center">
-    <h2 class="text-2xl mb-6">Manage your Email Campaigns</h2>
-    <div>
-      <a href="/compose" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Compose Email</a>
-      <a href="/subscription" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Manage Subscription</a>
+        <div class="mb-6">
+            <h3 class="text-xl font-bold">Your Subscription</h3>
+            <p>Email Quota: <%= emailQuota %> emails remaining</p>
+            <p><a href="/subscription" class="text-blue-500">Purchase more emails</a></p>
+        </div>
+
+        <h3 class="text-xl font-bold mb-4">Send an Email</h3>
+        <form action="/send-email" method="POST">
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">To:</label>
+                <input type="email" name="to" class="w-full p-2 border rounded" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">Subject:</label>
+                <input type="text" name="subject" class="w-full p-2 border rounded" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">Message:</label>
+                <textarea name="text" class="w-full p-2 border rounded" required></textarea>
+            </div>
+            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Send Email</button>
+        </form>
     </div>
-  </section>
 </body>
 </html>

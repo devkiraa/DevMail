@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription - Bulk Email Sender</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h2 class="text-3xl font-bold mb-6">Purchase Subscription</h2>
+        <form action="/purchase-subscription" method="POST">
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">Select Email Quota:</label>
+                <select name="email_quota" class="w-full p-2 border rounded">
+                    <option value="100">100 Emails - Rs 10</option>
+                    <option value="500">500 Emails - Rs 50</option>
+                    <option value="1000">1000 Emails - Rs 100</option>
+                </select>
+            </div>
+            <input type="hidden" name="amount_paid" value="10">
+            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Purchase</button>
+        </form>
+    </div>
+</body>
+</html>
